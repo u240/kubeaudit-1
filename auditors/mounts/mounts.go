@@ -16,8 +16,8 @@ const (
 	SensitivePathsMounted = "SensitivePathsMounted"
 )
 
-// DefaultSensitivePaths is the default list of sensitive mount paths (from Falco rule: https://github.com/falcosecurity/falco/blob/master/rules/k8s_audit_rules.yaml#L155)
-var DefaultSensitivePaths = []string{"/proc", "/var/run/docker.sock", "/", "/etc", "/root", "/var/run/crio/crio.sock", "/home/admin", "/var/lib/kubelet", "/var/lib/kubelet/pki", "/etc/kubernetes", "/etc/kubernetes/manifests"}
+// DefaultSensitivePaths is the default list of sensitive mount paths (from Falco rule: https://github.com/falcosecurity/falco/blob/master/rules/falco_rules.yaml#L1945)
+var DefaultSensitivePaths = []string{"/proc", "/var/run/docker.sock", "/", "/etc", "/root", "/var/run/crio/crio.sock", "/run/containerd/containerd.sock", "/home/admin", "/var/lib/kubelet", "/var/lib/kubelet/pki", "/etc/kubernetes", "/etc/kubernetes/manifests"}
 
 const overrideLabelPrefix = "allow-host-path-mount-"
 
@@ -61,7 +61,7 @@ func (sensitive *SensitivePathMounts) Audit(resource k8s.Resource, _ []k8s.Resou
 
 	for _, container := range k8s.GetContainers(resource) {
 		for _, auditResult := range auditContainer(container, sensitiveVolumes) {
-			auditResult = override.ApplyOverride(auditResult, container.Name, resource, getOverrideLabel(auditResult.Metadata[MountNameMetadataKey]))
+			auditResult = override.ApplyOverride(auditResult, Name, container.Name, resource, getOverrideLabel(auditResult.Metadata[MountNameMetadataKey]))
 			if auditResult != nil {
 				auditResults = append(auditResults, auditResult)
 			}
@@ -100,7 +100,8 @@ func auditContainer(container *k8s.ContainerV1, sensitiveVolumes map[string]v1.V
 	for _, mount := range container.VolumeMounts {
 		if volume, ok := sensitiveVolumes[mount.Name]; ok {
 			auditResults = append(auditResults, &kubeaudit.AuditResult{
-				Name:     SensitivePathsMounted,
+				Auditor:  Name,
+				Rule:     SensitivePathsMounted,
 				Severity: kubeaudit.Error,
 				Message:  fmt.Sprintf("Sensitive path mounted as volume: %s (hostPath: %s). It should be removed from the container's mounts list.", mount.Name, volume.HostPath.Path),
 				Metadata: kubeaudit.Metadata{

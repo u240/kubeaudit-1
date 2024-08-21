@@ -12,7 +12,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v2
         with:
-          go-version: "1.17.x"
+          go-version-file: "go.mod"
       - name: Clone repo
         uses: actions/checkout@v2
       - name: Install kubectl
@@ -22,4 +22,6 @@ jobs:
       - name: Go mod download and go tidy
         run: make setup
       - name: Run tests
+        env:
+          USE_KIND: "true"
         run: make test

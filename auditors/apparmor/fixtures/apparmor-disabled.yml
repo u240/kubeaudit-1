@@ -4,7 +4,7 @@ metadata:
   name: pod
   namespace: apparmor-disabled
   annotations:
-    container.apparmor.security.beta.kubernetes.io/container: badval
+    container.apparmor.security.beta.kubernetes.io/container: unconfined
 spec:
   containers:
     - name: container

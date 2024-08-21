@@ -1,6 +1,6 @@
 // Package kubeaudit provides methods to find and fix security issues in Kubernetes resources.
 //
-// Modes
+// # Modes
 //
 // Kubeaudit supports three different modes. The mode used depends on the audit method used.
 //
@@ -14,100 +14,100 @@
 //
 // Follow the instructions below to use kubeaudit:
 //
-// First initialize the security auditors
+// # First initialize the security auditors
 //
 // The auditors determine which security issues kubeaudit will look for. Each auditor is responsible for a different
 // security issue. For an explanation of what each auditor checks for, see https://github.com/Shopify/kubeaudit#auditors.
 //
 // To initialize all available auditors:
 //
-//   import "github.com/Shopify/kubeaudit/auditors/all"
+//	import "github.com/Shopify/kubeaudit/auditors/all"
 //
-//   auditors, err := all.Auditors(config.KubeauditConfig{})
+//	auditors, err := all.Auditors(config.KubeauditConfig{})
 //
 // Or, to initialize specific auditors, import each one:
 //
-//   import (
-//     "github.com/Shopify/kubeaudit/auditors/apparmor"
-//     "github.com/Shopify/kubeaudit/auditors/image"
-//   )
+//	import (
+//	  "github.com/Shopify/kubeaudit/auditors/apparmor"
+//	  "github.com/Shopify/kubeaudit/auditors/image"
+//	)
 //
-//   auditors := []kubeaudit.Auditable{
-//     apparmor.New(),
-//     image.New(image.Config{Image: "myimage:mytag"}),
-//   }
+//	auditors := []kubeaudit.Auditable{
+//	  apparmor.New(),
+//	  image.New(image.Config{Image: "myimage:mytag"}),
+//	}
 //
-// Initialize Kubeaudit
+// # Initialize Kubeaudit
 //
 // Create a new instance of kubeaudit:
 //
-//   kubeAuditor, err := kubeaudit.New(auditors)
+//	kubeAuditor, err := kubeaudit.New(auditors)
 //
-// Run the audit
+// # Run the audit
 //
 // To run the audit in manifest mode:
 //
-//   import "os"
+//	import "os"
 //
-//   manifest, err := os.Open("/path/to/manifest.yaml")
-//   if err != nil {
-//     ...
-//   }
+//	manifest, err := os.Open("/path/to/manifest.yaml")
+//	if err != nil {
+//	  ...
+//	}
 //
-//   report, err := kubeAuditor.AuditManifest(manifest)
+//	report, err := kubeAuditor.AuditManifest(manifest)
 //
 // Or, to run the audit in local mode:
 //
-//   report, err := kubeAuditor.AuditLocal("/path/to/kubeconfig.yml", kubeaudit.AuditOptions{})
+//	report, err := kubeAuditor.AuditLocal("/path/to/kubeconfig.yml", kubeaudit.AuditOptions{})
 //
 // Or, to run the audit in cluster mode (pass it a namespace name as a string to only audit resources in that namespace, or an empty string to audit resources in all namespaces):
 //
-//   report, err := auditor.AuditCluster(kubeaudit.AuditOptions{})
+//	report, err := auditor.AuditCluster(kubeaudit.AuditOptions{})
 //
-// Get the results
+// # Get the results
 //
 // To print the results in a human readable way:
 //
-//   report.PrintResults()
+//	report.PrintResults()
 //
 // Results are printed to standard out by default. To print to a string instead:
 //
-//   var buf bytes.Buffer
-//   report.PrintResults(kubeaudit.WithWriter(&buf), kubeaudit.WithColor(false))
-//   resultsString := buf.String()
+//	var buf bytes.Buffer
+//	report.PrintResults(kubeaudit.WithWriter(&buf), kubeaudit.WithColor(false))
+//	resultsString := buf.String()
 //
 // Or, to get the result objects:
 //
-//   results := report.Results()
+//	results := report.Results()
 //
-// Autofix
+// # Autofix
 //
 // Note that autofixing is only supported in manifest mode.
 //
 // To print the plan (what will be fixed):
 //
-//  report.PrintPlan(os.Stdout)
+//	report.PrintPlan(os.Stdout)
 //
 // To automatically fix the security issues and print the fixed manifest:
 //
-//   err = report.Fix(os.Stdout)
+//	err = report.Fix(os.Stdout)
 //
-// Override Errors
+// # Override Errors
 //
 // Overrides can be used to ignore specific auditors for specific containers or pods.
 // See the documentation for the specific auditor you wish to override at https://github.com/Shopify/kubeaudit#auditors.
 //
-// Custom Auditors
+// # Custom Auditors
 //
 // Kubeaudit supports custom auditors. See the Custom Auditor example.
-//
 package kubeaudit
 
 import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"path/filepath"
+	"strings"
 
 	"github.com/Shopify/kubeaudit/internal/k8sinternal"
 	"github.com/Shopify/kubeaudit/pkg/k8s"
@@ -138,8 +138,8 @@ func New(auditors []Auditable, opts ...Option) (*Kubeaudit, error) {
 }
 
 // AuditManifest audits the Kubernetes resources in the provided manifest
-func (a *Kubeaudit) AuditManifest(manifest io.Reader) (*Report, error) {
-	manifestBytes, err := ioutil.ReadAll(manifest)
+func (a *Kubeaudit) AuditManifest(manifestPath string, manifest io.Reader) (*Report, error) {
+	manifestBytes, err := io.ReadAll(manifest)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,19 @@ func (a *Kubeaudit) AuditManifest(manifest io.Reader) (*Report, error) {
 		return nil, err
 	}
 
-	report := &Report{results: results}
+	for _, result := range results {
+		auditResults := result.GetAuditResults()
+
+		if !filepath.IsAbs(manifestPath) {
+			manifestPath = strings.TrimPrefix(filepath.Clean("/"+manifestPath), "/")
+		}
+
+		for _, ar := range auditResults {
+			ar.FilePath = manifestPath
+		}
+	}
+
+	report := NewReport(results)
 
 	return report, nil
 }
@@ -179,7 +191,7 @@ func (a *Kubeaudit) AuditCluster(options AuditOptions) (*Report, error) {
 		return nil, err
 	}
 
-	report := &Report{results: results}
+	report := NewReport(results)
 
 	return report, nil
 }
@@ -202,7 +214,7 @@ func (a *Kubeaudit) AuditLocal(configpath string, context string, options AuditO
 		return nil, err
 	}
 
-	report := &Report{results: results}
+	report := NewReport(results)
 
 	return report, nil
 }
@@ -210,6 +222,10 @@ func (a *Kubeaudit) AuditLocal(configpath string, context string, options AuditO
 // Report contains the results after auditing
 type Report struct {
 	results []Result
+}
+
+func NewReport(results []Result) *Report {
+	return &Report{results}
 }
 
 // RawResults returns all of the results for each Kubernetes resource, including ones that had no audit results.
@@ -220,8 +236,8 @@ func (r *Report) RawResults() []Result {
 
 // Results returns the audit results for each Kubernetes resource
 func (r *Report) Results() []Result {
-	results := make([]Result, 0, len(r.results))
-	for _, result := range r.results {
+	results := make([]Result, 0, len(r.RawResults()))
+	for _, result := range r.RawResults() {
 		if len(result.GetAuditResults()) > 0 {
 			results = append(results, result)
 		}
@@ -232,7 +248,7 @@ func (r *Report) Results() []Result {
 // ResultsWithMinSeverity returns the audit results for each Kubernetes resource with a minimum severity
 func (r *Report) ResultsWithMinSeverity(minSeverity SeverityLevel) []Result {
 	var results []Result
-	for _, result := range r.results {
+	for _, result := range r.RawResults() {
 		var filteredAuditResults []*AuditResult
 		for _, auditResult := range result.GetAuditResults() {
 			if auditResult.Severity >= minSeverity {
@@ -240,7 +256,7 @@ func (r *Report) ResultsWithMinSeverity(minSeverity SeverityLevel) []Result {
 			}
 		}
 		if len(filteredAuditResults) > 0 {
-			results = append(results, &workloadResult{
+			results = append(results, &WorkloadResult{
 				Resource:     result.GetResource(),
 				AuditResults: filteredAuditResults,
 			})
@@ -270,7 +286,7 @@ func (r *Report) PrintResults(printOptions ...PrintOption) {
 // Fix tries to automatically patch any security concerns and writes the resulting manifest to the provided writer.
 // Only applies when audit was performed on a manifest (not local or cluster)
 func (r *Report) Fix(writer io.Writer) error {
-	fixed, err := fix(r.results)
+	fixed, err := fix(r.RawResults())
 	if err != nil {
 		return err
 	}

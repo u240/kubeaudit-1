@@ -8,12 +8,22 @@ import (
 )
 
 const (
+	// TODO: remove deprecated unregistered labels after warning users about the breaking change
+
+	// DeprecatedContainerOverrideLabelPrefix is used to disable an auditor for a specific container
+	DeprecatedContainerOverrideLabelPrefix = "container.audit.kubernetes.io/"
+
+	// DeprecatedPodOverrideLabelPrefix is used to disable an auditor for a specific pod
+	DeprecatedPodOverrideLabelPrefix = "audit.kubernetes.io/pod."
+
+	// DeprecatedNamespaceOverrideLabelPrefix is used to disable an auditor for a specific namespace resource
+	DeprecatedNamespaceOverrideLabelPrefix = "audit.kubernetes.io/namespace."
+
 	// ContainerOverrideLabelPrefix is used to disable an auditor for a specific container
-	ContainerOverrideLabelPrefix = "container.audit.kubernetes.io/"
-	// PodOverrideLabelPrefix is used to disable an auditor for a specific pod
-	PodOverrideLabelPrefix = "audit.kubernetes.io/pod."
-	// NamespaceOverrideLabelPrefix is used to disable an auditor for a specific namespace resource
-	NamespaceOverrideLabelPrefix = "audit.kubernetes.io/namespace."
+	ContainerOverrideLabelPrefix = "container.kubeaudit.io/"
+
+	// OverrideLabelPrefix is used to disable an auditor for either a pod or namespace
+	OverrideLabelPrefix = "kubeaudit.io/"
 )
 
 // GetOverriddenResultName takes an audit result name and modifies it to indicate that the security issue was
@@ -24,9 +34,10 @@ func GetOverriddenResultName(resultName string) string {
 
 // NewRedundantOverrideResult creates a new AuditResult at warning level telling the user to remove the override
 // label because there are no security issues found, so the label is redundant
-func NewRedundantOverrideResult(containerName string, overrideReason, overrideLabel string) *kubeaudit.AuditResult {
+func NewRedundantOverrideResult(auditorName, containerName, overrideReason, overrideLabel string) *kubeaudit.AuditResult {
 	return &kubeaudit.AuditResult{
-		Name:     kubeaudit.RedundantAuditorOverride,
+		Auditor:  auditorName,
+		Rule:     kubeaudit.RedundantAuditorOverride,
 		Severity: kubeaudit.Warn,
 		Message:  "Auditor is disabled via label but there were no security issues found by the auditor. The label should be removed.",
 		Metadata: kubeaudit.Metadata{
@@ -37,8 +48,8 @@ func NewRedundantOverrideResult(containerName string, overrideReason, overrideLa
 }
 
 // ApplyOverride checks if hasOverride is true. If it is, it changes the severity of the audit result from error to
-// warn, adds the override reason to the metadata and removes the pending fix
-func ApplyOverride(auditResult *kubeaudit.AuditResult, containerName string, resource k8s.Resource, overrideLabel string) *kubeaudit.AuditResult {
+// info, adds the override reason to the metadata and removes the pending fix
+func ApplyOverride(auditResult *kubeaudit.AuditResult, auditorName, containerName string, resource k8s.Resource, overrideLabel string) *kubeaudit.AuditResult {
 	hasOverride, overrideReason := GetContainerOverrideReason(containerName, resource, overrideLabel)
 
 	if !hasOverride {
@@ -46,10 +57,10 @@ func ApplyOverride(auditResult *kubeaudit.AuditResult, containerName string, res
 	}
 
 	if auditResult == nil {
-		return NewRedundantOverrideResult(containerName, overrideReason, overrideLabel)
+		return NewRedundantOverrideResult(auditorName, containerName, overrideReason, overrideLabel)
 	}
 
-	auditResult.Name = GetOverriddenResultName(auditResult.Name)
+	auditResult.Rule = GetOverriddenResultName(auditResult.Rule)
 	auditResult.PendingFix = nil
 	auditResult.Severity = kubeaudit.Info
 	auditResult.Message = "Audit result overridden: " + auditResult.Message
@@ -68,13 +79,18 @@ func ApplyOverride(auditResult *kubeaudit.AuditResult, containerName string, res
 // value of the label which is meant to represent the reason for overriding the auditor
 //
 // Container override labels disable the auditor for that specific container and have the following format:
-// 		container.audit.kubernetes.io/[container name].[auditor override label]
+//
+//	container.kubeaudit.io/[container name].[auditor override label]
 //
 // If there is no container override label, it calls GetResourceOverrideReason()
 func GetContainerOverrideReason(containerName string, resource k8s.Resource, overrideLabel string) (hasOverride bool, reason string) {
 	labels := k8s.GetLabels(resource)
 
 	if containerName != "" {
+		if reason, hasOverride = labels[GetDeprecatedContainerOverrideLabel(containerName, overrideLabel)]; hasOverride {
+			return
+		}
+
 		if reason, hasOverride = labels[GetContainerOverrideLabel(containerName, overrideLabel)]; hasOverride {
 			return
 		}
@@ -87,13 +103,17 @@ func GetContainerOverrideReason(containerName string, resource k8s.Resource, ove
 // label which is meant to represent the reason for overriding the auditor
 //
 // Pod override labels disable the auditor for the pod and all containers within the pod and have the following format:
-// 		audit.kubernetes.io/pod.[auditor override label]
+//
+// kubeaudit.io/[auditor override label]
+//
 // Namespace override labels disable the auditor for the namespace resource and have the following format:
-// 		audit.kubernetes.io/namespace.[auditor override label]
+//
+// kubeaudit.io/[auditor override label]
 func GetResourceOverrideReason(resource k8s.Resource, auditorOverrideLabel string) (hasOverride bool, reason string) {
 	labelFuncs := []func(overrideLabel string) string{
-		GetPodOverrideLabel,
-		GetNamespaceOverrideLabel,
+		GetOverrideLabel,
+		GetDeprecatedPodOverrideLabel,
+		GetDeprecatedNamespaceOverrideLabel,
 	}
 
 	labels := k8s.GetLabels(resource)
@@ -106,12 +126,21 @@ func GetResourceOverrideReason(resource k8s.Resource, auditorOverrideLabel strin
 	return false, ""
 }
 
-func GetPodOverrideLabel(overrideLabel string) string {
-	return PodOverrideLabelPrefix + overrideLabel
+// TODO: remove deprecated getters
+func GetDeprecatedPodOverrideLabel(overrideLabel string) string {
+	return DeprecatedPodOverrideLabelPrefix + overrideLabel
 }
 
-func GetNamespaceOverrideLabel(overrideLabel string) string {
-	return NamespaceOverrideLabelPrefix + overrideLabel
+func GetDeprecatedNamespaceOverrideLabel(overrideLabel string) string {
+	return DeprecatedNamespaceOverrideLabelPrefix + overrideLabel
+}
+
+func GetDeprecatedContainerOverrideLabel(containerName, overrideLabel string) string {
+	return DeprecatedContainerOverrideLabelPrefix + containerName + "." + overrideLabel
+}
+
+func GetOverrideLabel(overrideLabel string) string {
+	return OverrideLabelPrefix + overrideLabel
 }
 
 func GetContainerOverrideLabel(containerName, overrideLabel string) string {

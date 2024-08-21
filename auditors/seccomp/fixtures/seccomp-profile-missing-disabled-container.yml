@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod
+  namespace: seccomp-profile-missing-disabled-container
+spec:
+  containers:
+    - name: container
+      image: scratch
+      securityContext:
+        seccompProfile:
+          type: Unconfined

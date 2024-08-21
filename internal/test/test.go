@@ -3,7 +3,6 @@ package test
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,7 +45,7 @@ func AuditMultiple(t *testing.T, fixtureDir, fixture string, auditables []kubeau
 	errors := make(map[string]bool)
 	for _, result := range report.Results() {
 		for _, auditResult := range result.GetAuditResults() {
-			errors[auditResult.Name] = true
+			errors[auditResult.Rule] = true
 		}
 	}
 
@@ -79,7 +78,7 @@ func FixSetupMultiple(t *testing.T, fixtureDir, fixture string, auditables []kub
 	auditor, err := kubeaudit.New(auditables)
 	require.Nil(err)
 
-	report, err = auditor.AuditManifest(fixedManifest)
+	report, err = auditor.AuditManifest("", fixedManifest)
 	require.Nil(err)
 
 	results := report.RawResults()
@@ -107,7 +106,8 @@ func GetReport(t *testing.T, fixtureDir, fixture string, auditables []kubeaudit.
 	case MANIFEST_MODE:
 		manifest, openErr := os.Open(fixture)
 		require.NoError(openErr)
-		report, err = auditor.AuditManifest(manifest)
+		defer manifest.Close()
+		report, err = auditor.AuditManifest("", manifest)
 	case LOCAL_MODE:
 		defer DeleteNamespace(t, namespace)
 		CreateNamespace(t, namespace)
@@ -124,7 +124,7 @@ func GetReport(t *testing.T, fixtureDir, fixture string, auditables []kubeaudit.
 // It can be used to retrieve all of the resource manifests from the test/fixtures/all_resources directory
 // This directory is not hardcoded because the working directory for tests is relative to the test
 func GetAllFileNames(t *testing.T, directory string) []string {
-	files, err := ioutil.ReadDir(directory)
+	files, err := os.ReadDir(directory)
 	require.Nil(t, err)
 
 	fileNames := make([]string, 0, len(files))
@@ -136,7 +136,7 @@ func GetAllFileNames(t *testing.T, directory string) []string {
 
 // UseKind returns true if tests which utilize Kind should run
 func UseKind() bool {
-	return os.Getenv("USE_KIND") != "false"
+	return os.Getenv("USE_KIND") == "true"
 }
 
 func ApplyManifest(t *testing.T, manifestPath, namespace string) {

@@ -23,7 +23,7 @@ type logEntry struct {
 func TestPrintResults(t *testing.T) {
 	report := Report{
 		results: []Result{
-			&workloadResult{
+			&WorkloadResult{
 				AuditResults: []*AuditResult{
 					newTestAuditResult(Error),
 					newTestAuditResult(Warn),
@@ -56,7 +56,7 @@ func TestPrintResults(t *testing.T) {
 
 func newTestAuditResult(severity SeverityLevel) *AuditResult {
 	return &AuditResult{
-		Name:     "MyAuditResult",
+		Rule:     "MyAuditResult",
 		Severity: severity,
 		Metadata: Metadata{"Foo": "bar"},
 	}
@@ -74,7 +74,7 @@ func TestLogAuditResult(t *testing.T) {
 		auditResult := newTestAuditResult(severity)
 		report := &Report{
 			results: []Result{
-				&workloadResult{
+				&WorkloadResult{
 					AuditResults: []*AuditResult{
 						auditResult,
 					},

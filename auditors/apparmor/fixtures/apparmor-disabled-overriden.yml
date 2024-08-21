@@ -1,0 +1,15 @@
+# this tests then new kubeaudit labels for overriding errors (kubeaudit.io)
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod
+  namespace: apparmor-disabled-overriden
+  annotations:
+    container.apparmor.security.beta.kubernetes.io/container: unconfined
+  labels:
+    container.kubeaudit.io/container.allow-disabled-apparmor: "SomeReason"
+spec:
+  containers:
+    - name: container
+      image: scratch

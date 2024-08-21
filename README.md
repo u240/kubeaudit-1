@@ -2,8 +2,20 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/Shopify/kubeaudit)](https://goreportcard.com/report/github.com/Shopify/kubeaudit)
 [![GoDoc](https://godoc.org/github.com/Shopify/kubeaudit?status.png)](https://godoc.org/github.com/Shopify/kubeaudit)
 
-> Kubeaudit no longer supports APIs deprecated as of [Kubernetes v.1.16 release](https://kubernetes.io/blog/2019/07/18/api-deprecations-in-1-16/). So, it is now a requirement for clusters to run Kubernetes >=1.16
+> It is now a requirement for clusters to run Kubernetes >=1.19.
 
+> override labels with unregistered `kubernetes.io` annotations will be deprecated. It'll soon be a requirement to use `kubeaudit.io` instead.
+Refer to this [discussion](https://github.com/Shopify/kubeaudit/issues/457) for additional context.
+
+# 🚨 Deprecation Notice 🚨
+
+Kubeaudit is planned for deprecation by October 2024.
+
+We are actively seeking maintainers who are interested in taking over the stewardship of this project. If you are passionate about continuing its development and maintenance, please reach out to us.
+
+For users looking for alternatives, we recommend transitioning to Kubebench, which offers similar functionality and is actively maintained.
+
+Thank you to the community for your contributions and support.
 
 # kubeaudit :cloud: :lock: :muscle:
 
@@ -47,8 +59,8 @@ Kubeaudit has official releases that are blessed and stable:
 
 ### DIY build
 
-Master may have newer features than the stable releases. If you need a newer
-feature not yet included in a release, make sure you're using Go 1.17+ and run
+Main may have newer features than the stable releases. If you need a newer
+feature not yet included in a release, make sure you're using the latest Go and run
 the following:
 
 ```sh
@@ -71,7 +83,9 @@ or
 
 ### Docker
 
-We also release a [Docker image](https://hub.docker.com/r/shopify/kubeaudit): `shopify/kubeaudit`. To run kubeaudit as a job in your cluster see [Running kubeaudit in a cluster](docs/cluster.md).
+We no longer release images to Docker Hub (since Docker Hub sunset Free Team organizations). For the time being, [old images](https://hub.docker.com/r/shopify/kubeaudit) are still available but may stop being available at any time. We will start publishing images to the Github Container registry soon.
+
+To run kubeaudit as a job in your cluster see [Running kubeaudit in a cluster](docs/cluster.md).
 
 ## Quick Start
 
@@ -175,6 +189,11 @@ The minimum severity level can be set using the `--minSeverity/-m` flag.
 
 By default kubeaudit will output results in a human-readable way. If the output is intended to be further processed, it can be set to output JSON using the `--format json` flag. To output results as logs (the previous default) use `--format logrus`. Some output formats include colors to make results easier to read in a terminal. To disable colors (for example, if you are sending output to a text file), you can use the `--no-color` flag.
 
+You can generate a kubeaudit report in [SARIF](https://docs.oasis-open.org/sarif/sarif/v2.0/sarif-v2.0.html) using the `--format sarif` flag. To write the SARIF results to a file, you can redirect the output with `>`. For example:
+```
+kubeaudit all -f path-to-my-file.yaml --format="sarif" > example.sarif
+```
+
 If there are results of severity level `error`, kubeaudit will exit with exit code 2. This can be changed using the `--exitcode/-e` flag.
 
 For all the ways kubeaudit can be customized, see [Global Flags](#global-flags).
@@ -212,7 +231,7 @@ Auditors can also be run individually.
 
 | Short | Long               | Description                                                                                                                                            |
 | :---- | :----------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- |
-|       | --format           | The output format to use (one of "pretty", "logrus", "json") (default is "pretty")                                                                     |
+|       | --format           | The output format to use (one of "sarif", "pretty", "logrus", "json") (default is "pretty")                                                                     |
 |       | --kubeconfig       | Path to local Kubernetes config file. Only used in local mode (default is `$HOME/.kube/config`)                                                        |
 | -c    | --context          | The name of the kubeconfig context to use                                                                                                              |
 | -f    | --manifest         | Path to the yaml configuration to audit. Only used in manifest mode. You may use `-` to read from stdin.                                               |
@@ -287,13 +306,13 @@ The `key` is a combination of the override type (container or pod) and an `overr
 1. **Container overrides**, which override the auditor for that specific container, are formatted as follows:
 
 ```yaml
-container.audit.kubernetes.io/[container name].[override identifier]
+container.kubeaudit.io/[container name].[override identifier]
 ```
 
 2. **Pod overrides**, which override the auditor for all containers within the pod, are formatted as follows:
 
 ```yaml
-audit.kubernetes.io/pod.[override identifier]
+kubeaudit.io/[override identifier]
 ```
 
 If the `value` is set to a non-empty string, it will be displayed in the `info` result as the `OverrideReason`:
@@ -327,7 +346,7 @@ To learn more about labels, see https://kubernetes.io/docs/concepts/overview/wor
 
 ## Contributing
 
-If you'd like to fix a bug, contribute a feature or just correct a typo, please feel free to do so as long as you follow our [Code of Conduct](https://github.com/Shopify/kubeaudit/blob/master/CODE_OF_CONDUCT.md).
+If you'd like to fix a bug, contribute a feature or just correct a typo, please feel free to do so as long as you follow our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 1. Create your own fork!
 1. Get the source: `go get github.com/Shopify/kubeaudit`
@@ -335,7 +354,7 @@ If you'd like to fix a bug, contribute a feature or just correct a typo, please 
 1. Add your forked repo as a fork: `git remote add fork https://github.com/you-are-awesome/kubeaudit`
 1. Create your feature branch: `git checkout -b awesome-new-feature`
 1. Install [Kind](https://kind.sigs.k8s.io/#installation-and-usage)
-1. Run the tests to see everything is working as expected: `make test` (to run tests without Kind: `USE_KIND=false make test`)
+1. Run the tests to see everything is working as expected: `USE_KIND=true make test` (to run tests without Kind: `make test`)
 1. Commit your changes: `git commit -am 'Adds awesome feature'`
 1. Push to the branch: `git push fork`
 1. Sign the [Contributor License Agreement](https://cla.shopify.com/)
